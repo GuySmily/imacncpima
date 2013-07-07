@@ -1,0 +1,967 @@
+'-------------------------- Honda Insight IMA C&C System -----------------------
+'-------- Picbasic Pro  Compiler version PIC16F88 - 080112 - V4.07 6hz ---------
+'-------------------------------------------------------------------------------
+
+'******************************** Disclaimer ***********************************
+'
+'This module carries no warranty or guarantee of any kind! It is used at
+'your own risk, and I make no claims as to it's suitability for a particular
+'function. Prospective users must evaluate the system before using it, and no
+'liability will be entertained by myself in any shape or form whatsoever.
+'The modules and software have been produced at low cost for the benefit of
+'the EV & electronic community. The software is available via the internet.
+'Users may modify or adapt the system as they see fit. If you are not fully
+'competent to work on potentially lethal battery systems and high voltages,
+'then do not experiment with or use this system. Be aware that vehicle
+'modifications can lead to invalidated insurance and warranty issues. You the
+'end user remain fully liable for any modifications made to your vehicle.     
+'
+'********************************* Mima Notes **********************************
+
+'The Insight ECM sends CMDPWR 2khz 50% duty cycle pulses to the MCM to tell
+'it to assist(>50% duty) or charge(<50% duty cycle)
+
+'The ECM also pulls the MAMODE 2 signal low when in the assist mode, and it
+'is high when in the regen mode.
+
+'The ECM replaces the 20KHZ 50% duty cycle MAMODE 1 signal with a 20KHZ 25%
+'duty cycle signal when assist is desired. 
+
+'The ECM replaces the 20KHZ 50% duty cycle MAMODE 1 signal with a 20KHZ 35%
+'duty cycle signal when regen is desired. 
+
+'If Sinking the MCM pull ups into pics then 90% duty pwm = 90% duty
+
+'Standby Mode = CmdPwr 50%     MaMode1 50%   MaMode2 High
+'Assist Mode  = CmdPwr 51-90%  Mamode1 25%   MaMode2 Low
+'Regen Mode   = CmdPwr 49-10%  MaMode1 35%   MaMode2 High
+'Start Mode   = CmdPwr 50%     MaMode1 85%   MaMode2 Low
+
+'The DC-DC converter can be controlled with the MAMOD1 or MAMOD2.
+
+'15% duty shuts the DC-DC off. Any other duty enables it.
+'If MAMOD2 is pulled low, the DC-DC turns on regardless of duty on MAMOD1. 
+
+'**************************** Pic 16F88 Pinouts *******************************
+'** PIC 16F88 Pinouts FLASH 4096 (words) SRAM 368 (bytes) EEPROM 256 (bytes) **
+
+'                                    Top
+'                                   _____
+'(ADC2 Throttle In)     Input 2 -01|  ^  |18- Output1                  (SCS Out)
+'(ADC3 Map/VMax In/Out) Input 3 -02|     |17- Input 0          (ADC0 Buttons In)	
+'(ADC4 VSS In)          Input 4 -03|  1  |16- Input 7     	      (Brake In) 
+'(MCLR)                 Input 5 -04|  6  |15- Input 6        	     (Clutch In)
+'(Gnd)                    Gnd 3 -05|  F  |14- +V                           (Vcc)
+'(HCT 4053 Control)    Output 0 -06|  8  |13- Output 7         (PGD + Regen Led)  
+'(MAMODE2 Pull Up)     Output 1 -07|  8  |12- Output 6 (PGC + Assist Led + Data)
+'(RX BATTSCI Orange)    Input 2 -08|     |11- Output 5       (TX Lcd 9600,8,N,1) 
+'(MAMODE1 20khz Pwm)   Output 3 -09|     |10- Output 4         (CMDPWR 2khz Pwm)
+'                                   -----
+
+'************************ Maxim 4619 or HCT4053 Pinouts ************************
+
+'                                    Top					
+'                                   _____
+'(MaMode1 From Pic)           Y1 -1|  ^  |16- +V               	 	  (Vcc)
+'(Mamode1 From ECM)           Y0 -2|     |15- Y               	(CmdPwr to MCM)
+'(MaMode2 From Pic)           Z1 -3|  4  |14- X                (MaMode1 to MCM) 
+'(MaMode2 to MCM)	       Z -4|  0  |13- X1              (CmdPwr From Pic)
+'(MaMode2 From ECM)           Z0 -5|  5  |12- X0              (CmdPwr From ECM)
+'(Switch Enable)          Enable -6|  3  |11- XC             (X CmdPwr Control)
+'(No Connection)              Nc -7|     |10- YC            (Y Mamode1 Control) 
+'(Gnd)           	     Gnd -8|     |9 - ZC            (Z Mamode2 Control)
+'                                   ----- 
+
+'***** PIC16F88 ICSP In circuit serial Programming Pinouts 5 Pin Sil 0.1" *****
+
+'1) MCLR
+'2) +5V
+'3) GND
+'4) Data
+'5) Clock
+
+'************************** JoyButton Specification ****************************
+
+'				Control JoyButton
+
+'			Max Assist or Assist/Regen +/- 1
+
+				
+'               Regen + 10    	 Standby	   Assist + 10  
+
+				
+'			Max Regen or Assist/Regen +/- 1
+
+'Push = 0 Up = 1 Right = 2 Down = 3 Left = 4 No Key = 5
+'SP = Short Press
+'LP = Long Press
+
+'** Display Mode  = 0 ** Default Display Mode
+
+'Push {SP} = Cancel Assist/Regen & Disable IMAC&C
+'Push {LP} = Change Display Mode
+
+'Up {SP} = Increase Assist by 1 unit or Decrease Regen by 1 unit
+'Down {SP} = Decrease Assist by 1 unit or Increase Regen by 1 unit
+
+'Right {SP} = Increase Assist by 25 units or Decrease Regen by 25 units 
+'Right {LP} = Start Engine
+
+'Left {SP} = Decrease Assist by 25 units or Increase Regen by 25 units
+'Left {LP} = Stop Engine 
+
+	
+'** Display Mode  = 1 ** Elapsed Time & Ah Mode
+
+'Push {LP} = Change Display Mode
+'Up   {SP} = Reset Time to Zero
+'Down {SP} = Reset Ah to Zero
+
+
+'** Display Mode  = 2 ** Watt Hour Mode
+
+'Push {LP} = Change Display Mode
+'Down {SP} = Reset Wh to Zero
+
+
+'** Display Mode  = 3 ** Config Mode
+
+'Push {LP} = Change Display Mode
+
+'Up {SP} = BackLight    (8 Steps Low - High - Off)
+
+'Down {SP} = Temp Mode 	(1 = Centigrade)	(0 = Farenheit)
+'Down {LP} = Log Mode   (1 = Logging Disabled)  (0 = Logging Enabled)
+      
+'Right {LP} = AssistBit (1 = Max Assist Enable) (0 = Max Assist Disable)
+
+
+'** Display Mode  = 4,5,6 **  B3 Byte Mode, SCS Mode, Splash Screen Mode
+
+'Push {LP} = Change Display Mode
+
+'******************************** Pcb Specs ************************************
+
+'Board Supply Voltage 5.00V
+'CPU Speed 8mhz with internal resonator 
+'Average Board Supply Current at 5v <100ma
+
+'******************************** Lcd Specs ************************************
+
+'Sparkfun 16x2 Serial Display
+
+'-------------------------------------
+'        PBP CODE 8mhz 3539 Words
+'-------------------------------------
+
+'MPASM Config PBP3
+'Note MCLR must be ON for 16F88 or chip will be locked and un-programable
+
+#config
+ __config _CONFIG1, _INTRC_IO & _WDT_OFF & _LVP_OFF & _MCLR_ON & _CCP1_RB3 
+ __config _CONFIG2, _IESO_OFF & _FCMEN_OFF
+#endconfig
+
+
+DEFINE OSC 8 			'Set oscilator speed to 8mHz 
+OSCCON = %01111000 		'8 Mhz
+
+TRISA = %11111101 		'SET PORTA AS INPUTS except port A.1 
+TRISB = %00000100 		'SET PORTB AS OUTPUTS except port B.2
+
+CMCON  = %00000111 		'COMPARATORS OFF
+ANSEL  = %00001101      	'AN0,AN2,AN3 Analog Inputs 
+ADCON0 = %01010001		'Turns A/D on, AN2  Fosc/16
+ADCON1 = %01000000      	'Left justified and Fosc/16
+T1CON  = %00110000		'$30 = Prescaler 1:8, TMR1 OFF	
+
+OPTION_REG = %00000001		'Set Option Reg for TMR0 and prescaler 1/4
+
+DEFINE CCP1_REG PORTB 		'Define output port for 20khz PWM pulses out
+DEFINE CCP1_BIT 3 		'Define output port for 20khz PWM pulses out 
+
+Define ADC_BITS 8 		'Set number of bits in result
+Define ADC_CLOCK 3 		'Set clock source (3=rc)
+Define ADC_SAMPLEUS 50 		'Set sampling time in uSec 
+
+DEFINE HSER_BAUD 9600		'Set Baud rate to 9600bps
+DEFINE HSER_BITS 9		'Set to 9 bit mode
+DEFINE HSER_EVEN 1		'Set Even Parity
+DEFINE HSER_CLROERR 1 		'Clear overflow error automatically
+
+DEFINE DEBUG_REG PORTB
+DEFINE DEBUG_BIT 6
+DEFINE DEBUG_BAUD 115200
+DEFINE DEBUG_MODE 0
+
+;----[Constants]------------------------------------------
+
+HPWMfreq        CON 20000	'Set Frequency of HPWM Mamode1 20khz
+
+;----[Initialize]-----------------------------------------
+
+'SSPWM Module
+
+DEFINE INTHAND INT_CODE         	'Tell PBP Where the code starts on an interrupt
+
+wsave       VAR BYTE    $20     SYSTEM  '$20 Save location for the W register if in bank0
+wsave1      VAR BYTE    $A0     SYSTEM  'Save location for the W register if in bank1
+wsave2      VAR BYTE    $120    SYSTEM  'Save location for the W register if in bank2
+wsave3      VAR BYTE    $1A0    SYSTEM  'Save location for the W register if in bank3
+ssave       VAR BYTE    Bank0   SYSTEM  'Save location for the STATUS register
+psave       VAR BYTE    Bank0   SYSTEM  'Save location for the PCLATH register
+
+TMR0_ON_TICKS       var byte Bank0    	'# of Tmr ticks for On Time
+TMR0_OFF_TICKS      var byte Bank0    	'# of Tmr ticks for Off Time
+TMR0_ON_VAL         var byte Bank0    	'# to load TMR0 for On Time
+TMR0_OFF_VAL        var byte Bank0    	'# to load TMR0 for Off Time
+
+DataFlags           var byte Bank0
+SPWMstate           var DataFlags.2   	'Current state of SPWM output high or low
+
+GIE                 var INTCON.7	'Global Interrupt enable
+
+TMR0IF		    var INTCON.2	'TMR0 interrupt flag
+TMR0IE		    var INTCON.5	'TMR0 interrupt enable bit (1 = enabled)
+	
+'Other Variables and I/O definitions
+
+'------------------------ Variables --------------------------------------
+
+'Variables 1bit
+
+'IRFlag Byte (Bit Assingment) Note * (Default for all bits is 1 after program download)
+
+AssistFlag	var FlagByte.Bit0	'Max Assist Mode Flag  	(1 = Max Assist On)	(0 = Max Assist Off)
+
+
+AssistBit  	var Config.Bit0		'AssistBit 		(1 = Max Assist Enable) (0 = Max Assist Disable)
+
+TempBit	   	var Config.Bit2	    	'Temperature Display 	(1 = Centigrade)	(0 = Farenheit)
+
+LogBit		var Config.Bit4		'Logging Mode		(1 = Logging Disabled)  (0 = Logging Enabled)
+
+
+'Variables 8bit
+
+FlagByte	VAR BYTE	'Flag Bits Byte (0-7)
+Config      	var BYTE	'Config Flags Byte (0-7)
+DispMode	VAR BYTE	'DispMode Byte 0-X  
+
+L01     	VAR BYTE    	'Lcd Serial Control Code  Clear
+L02     	VAR BYTE    	'Lcd Serial Control Code  Clear
+
+L11     	VAR BYTE    	'Lcd Serial Control Code  Line 1
+L12     	VAR BYTE    	'Lcd Serial Control Code  Line 1
+L13     	VAR BYTE    	'Lcd Serial Control Code  Line 1
+L14     	VAR BYTE    	'Lcd Serial Control Code  Line 1
+
+L21     	VAR BYTE    	'Lcd Serial Control Code  Line 2
+L22     	VAR BYTE    	'Lcd Serial Control Code  Line 2
+L23     	VAR BYTE    	'Lcd Serial Control Code  Line 2
+L24     	VAR BYTE    	'Lcd Serial Control Code  Line 2
+
+Key             VAR BYTE    	'Value of Key Direction 0 - 5
+KeyTime		VAR BYTE	'Length of time Key pressed 0 - 255 (each unit is 200ms) (5 = 1s) 
+Temp	  	var BYTE	'Button temporay variable
+IgnOff      	var BYTE    	'Counts number of cycles Ignition has been off 
+
+B3Byte      	VAR BYTE    	'B3 Data Byte status
+
+DutyCycle    	var BYTE	'2khz PWM DutyCycle for CmdPwr 10 - 90% (25 = Max Regen [125 = 50% duty] 225 = Max Assist)
+OldDutyCycle   	var BYTE	'2khz PWM OldDutyCycle prevents continous restart of pwm routine if duty unchanged 
+TempDuty	VAR BYTE	'2khz PWM Stores DutyCycle During Max Assist (Rally) Mode
+
+MaMode1Duty     VAR BYTE	'20khz PWM DutyCycle for MaMode1 50 or 25% (50% = Normal/Regen 25% = Assist)
+LastMaMode1Duty VAR BYTE	'20khz PWM OldDutyCycle prevents continous restart of pwm routine if duty unchanged
+
+BCM 	  	var BYTE[11]	'Define BCM as a Byte array (12 Bytes 0-11) (BCM = BCM Data)
+
+Gen 	 	VAR BYTE	'General Byte Counter Variable (0-255)
+CheckSum  	VAR BYTE	'BCM Data Checksum calculation Byte
+Volts 	  	var BYTE	'Volts Byte Variable (0-255)
+AmpSign   	var BYTE      	'Amps Sign Byte Variable (43 = +) (45 = -)
+TempSign 	var BYTE	'Temperature Sign Byte Variable (43 = +) (45 = -)
+TempAvg		Var BYTE	'Average Temperature BYTE Variable
+Light       	VAR BYTE     	'Lcd BackLight Setting (128 = off  to  157 = 100%)
+
+Ticks     	var BYTE	'TMR1 Ticks Every 166ms
+SS        	var BYTE	'Seconds
+MM	  	var BYTE	'Minutes
+HH	  	var WORD	'Hours
+
+'Variables 16bit
+
+Amps 	  	var WORD	'Amps Word Variable
+Soc	  	var WORD	'Soc Word Variable
+Watts	  	var WORD	'IMA Power in Watts (Battery Volts x Battery Amps)
+Errors		VAR WORD	'Number of checksum errors 
+Packets		VAR WORD	'Number of data packets recieved
+Count1 	 	VAR WORD	'General Word Counter Variable (0-65535)
+
+PreLoad   	var WORD        'Preload Constant Loads Timer1 to get xxxms ticks
+TMR1RunOn 	var WORD	'Timer1 Run On
+Charge	  	var WORD 	'Charge accumulator 
+Discharge 	var WORD  	'Discharge accumulator
+ChgAh     	var WORD	'Charge Ah In
+DisAh     	var WORD	'Discharge Ah Out
+LoopTimer 	var WORD	'Loop Timer shows how long the main loop is taking (65535 = Max count)
+WattHrIn  	var WORD	'Watt Hours In
+WattHrOut 	var WORD	'Watt Hours Out
+WattIn    	var WORD	'Watts In accumulator
+WattOut   	var WORD	'Watts Out accumulator
+OverFlow  	var WORD      	'Shows How many times Timer has overflowed before loop completed. (Time errors)
+
+'PortA Input Variables
+
+'Buttons   	VAR PORTA.0	'Define PortA.0 Pin as Buttons ADC Input
+SCS	  	VAR PORTA.1	'Define PortA.1 Pin as SCS OutPut 
+'Throttle  	VAR PORTA.2	'Define PortA.2 Pin as Throttle ADC Input
+Map       	VAR PORTA.3	'Define PortA.3 Pin as Map Sensor ADC Input or VMax Hi/Lo Output
+'Vss     	VAR PORTA.4	'Define PortA.4 Pin as VSS Speed Sensor ADC/Pulse Input
+'MCLR   	VAR PORTA.5	'Define PortA.5 Pin as Pic Master Clear
+Clutch    	VAR PORTA.6	'Define PortA.6 Pin as Clutch Switch Input
+Brake         	VAR PORTA.7	'Define PortA.7 Pin as Brake Switch Input
+
+'PORTB Ouput Variables
+
+HCT4053      	VAR PORTB.0	'Define PortB.0 Pin as HCT4053 chip High/Low
+MaMode2     	VAR PORTB.1	'Define PortB.1 Pin as Mamode2 Pull Up
+'Bcm      	VAR PORTB.2	'Define PortB.2 Pin as Usart RX BCM Data Serial Input 9600,8,E,1
+MaMode1         VAR PORTB.3	'Define PortB.3 Pin as Mamode1 PWM 20khz Output 25-50% Duty
+CmdPwr      	VAR PORTB.4 	'Define PortB.4 Pin as CmdPwr PWM 2khz Output 10-90% Duty
+'Lcd           	VAR PORTB.5 	'Define PortB.5 Pin as Usart TX Lcd Data Serial Output 9600,8,N,1
+AssistLed      	VAR PORTB.6 	'Define PortB.6 Pin as Assist Active Led + Data Logging Output 38400,8,N,1
+RegenLed       	VAR PORTB.7	'Define PortB.7 Pin as Regen Active Led
+
+'--------------------- Constants -----------------------------------------------
+
+'Unit	con 14400      		'Unit constant for Ah & Wh calculations (14400 for 4hz readings)
+'Unit	con 18000      		'Unit constant for Ah & Wh calculations (18000 for 5hz readings)
+Unit	con 21600      		'Unit constant for Ah & Wh calculations (21600 for 6hz readings)
+'Unit	con 28800      		'Unit constant for Ah & Wh calculations (28800 for 8hz readings)
+
+'--------------------- Load EEPROM -----------------------------------
+
+'Load EEPROM with Lcd Control Data (256 bytes) Area above Addr 240 reserved for gauge data
+
+EEPROM 0, [254,1,254,128,254,128,254,192,254,192]	'SparkFun Lcd Control Codes
+
+clear                               'Clear All Variables
+
+goto Start
+
+' ------------------------------------------------------------------------
+asm
+INT_CODE
+      if (CODE_SIZE <= 2)
+        movwf   wsave              ; copy W to wsave register
+        swapf   STATUS,W           ; swap status reg to be saved into W
+        clrf    STATUS             ; change to bank 0 regardless of current bank
+        movwf   ssave              ; save status reg to a bank 0 register
+        movf    PCLATH,w           ; move PCLATH reg to be saved into W reg
+        movwf   psave       ;6     ; save PCLATH reg to a bank 0 register
+      	endif
+        
+        btfss   INTCON, TMR0IF     ; is TMR0IF set?   Timer0 Interrupt Flag
+        GOTO  NoTimerInt           ; No.  Bypass timer load
+        btfss   _SPWMstate         ; Is Output High?
+        GOTO  TurnON      ;9/15    ; No.
+
+TurnOFF
+        bcf     _CmdPwr             ; Set CmdPwr Low
+        bcf     _SPWMstate          ;
+        MOVF    _TMR0_OFF_VAL,W     ;  1
+        ADDWF   TMR0,F              ;  1    ; reload timer with correct value
+        GOTO  TimerDone   ;12/27
+
+TurnON  
+        bsf     _CmdPwr             ; Set CmdPwr High
+        bsf     _SPWMstate          ;
+        MOVF    _TMR0_ON_VAL,W      ;  1
+        ADDWF   TMR0,F              ;  1    ; reload timer with correct value
+                           
+TimerDone        
+        bcf     INTCON, TMR0IF 	; 1/28 ; Clear Timer0 Interrupt Flag
+
+NoTimerInt    
+        Movf    psave,w             ; Restore the PCLATH reg
+        Movwf   PCLATH
+        swapf   ssave,w             ; Restore the STATUS reg			
+        movwf   STATUS
+        swapf   wsave,f
+        swapf   wsave,w    ; 6/34   ; Restore W reg
+       
+    Retfie                          ; Exit the interrupt routine	
+
+endasm
+' ------------------------------------------------------------------------
+
+StartSPWM:  	    				'Set DutyCycle before calling
+                    				'For TMR0 2khz pwm and 8mhz clock Ticks = xxx per cycle 
+	
+	TMR0_ON_TICKS = DutyCycle       	'(DutyCycle must be between 25 - 225 (10-90%)
+	TMR0_OFF_TICKS = 250 - TMR0_ON_TICKS
+	TMR0_ON_VAL = 250 - TMR0_ON_TICKS + 6
+	TMR0_OFF_VAL = 250 - TMR0_OFF_TICKS + 6
+	
+	TMR0IE = 1				'Enable TMR0 interrupt enable bit (1 = enabled)	
+	TMR0IF = 0				'Clear TMR0 interrupt flag
+	TMR0 = 255	    			'Load TMR0 with 255 First tick will cause an interrupt 
+		
+	return
+
+'************************************************************************************* 
+'*********************************** Main Program ************************************
+'*************************************************************************************
+
+Start:						'Main Program Start
+
+    	Low HCT4053				'De-Activate Mima
+	high SCS				'Disable SCS blink Mode
+
+'	PreLoad = 3036                		'Preload Constant Loads Timer1 with 3036 to get 250ms 4hz ticks
+'	PreLoad = 15536                		'Preload Constant Loads Timer1 with 15536 to get 200ms 5hz ticks
+	PreLoad = 23870                		'Preload Constant Loads Timer1 with 23870 to get 166ms 6hz ticks
+'	PreLoad = 34286                		'Preload Constant Loads Timer1 with 34286 to get 125ms 8hz ticks
+	
+    Read 243,WattHrIn.Byte0,WattHrIn.Byte1,WattHrOut.Byte0,WattHrOut.Byte1,ChgAh.Byte0,ChgAh.Byte1,_
+DisAh.Byte0,DisAh.Byte1,HH.Byte0,HH.Byte1,MM,SS,Config	'Read From EEprom
+	
+	TXSTA.6 = 0				'Clear 9 Bit Usart Txd Mode
+	GIE = 1					'Global Int Enable 
+	
+	if SS = 255 then			'Detects First Run & Clears Data
+	SS = 0					'Clear Seconds
+	MM = 0					'Clear Minutes
+	HH = 0					'Clear Hours
+	ChgAh = 0                     		'Clear Charge Ah In
+	DisAh = 0                      		'Clear Discharge Ah Out
+	WattHrIn = 0				'Clear Watt Hours In 
+	WattHrOut = 0				'Clear Watt Hours Out
+    	endif
+	
+	pause 1500
+	
+	hserout [124,18]               		'Reset Lcd to 9600 baud
+    	
+   	pause 500             			'Wait for Lcd
+
+	T1CON.0 = 0	       			'Stops Timer               
+	TMR1L = PreLoad.LowByte  		'Load the Timer with preload value
+	TMR1H = PreLoad.HighByte 		'Load the Timer with preload value
+	PIR1.0 = 0				'Clear TMR1 int flag 
+	T1CON.0 = 1	       			'Starts Timer
+
+Init:						'Initialise Lcd
+
+        Read 0,L01,L02,L11,L12,L13,L14,L21,L22,L23,L24	'Load Lcd Control Codes from EEprom
+	HSEROUT [L01,L02]                	'Clear Screen
+	DutyCycle = 125          		'Set Duty Cycle of SSPWM for CMDPWR 10-90%
+	FlagByte = 0				'Clears all Flag Bits, Max Assist (Rally), engine stop / start etc
+			
+;******************************************* Main Program *****************************************************
+
+MainLoop:					'Start of Main Program Loop
+	
+'BCM Gauge Packet Data Acquisition
+
+    	CheckSum = $87				'Load Checksum with $87 packet start byte value
+   	HSERIN [WAIT(CheckSum), STR BCM\11]	'Wait for $XX then Rxd 11 bytes
+	For Gen = 0 to 9		      	'For Gen = 0 to 9 (Start 10 byte loop)
+	CheckSum = CheckSum + BCM[Gen]		'Add Bytes
+	Next Gen			       	'Repeat until 10 bytes added
+	CheckSum = ~ CheckSum			'NOT CheckSum
+	CheckSum = CheckSum + 1			'Add 1 to CheckSum
+	Checksum = CheckSum & $7F 		'AND $7F
+	Packets = Packets + 1			'Increment Packet Counter
+	if BCM[10] <> CheckSum then 		'If Checksum does not match try again 	
+	Errors = Errors + 1			'Increment Error Counter
+	goto ErrorJump                 		'If Error skip analysis
+	endif  	
+	    		
+	Count1 = BCM[1] * 2			'Calculate Voltage
+	
+	If Count1 < 100 then ErrorJump         	'Check for invalid voltage and skip analysis
+	
+	B3Byte = BCM[9]             		'Load B3Byte from array BCM[9] B3 Flag Byte Status
+	
+	'Check if ignition turned off 		
+
+	if B3Byte = 0 then       		'If Ignition has been switched off save data (B3 byte = 0)
+	IgnOff = IgnOff + 1			'Increment Ignition Off Counter
+	else
+	IgnOff = 0				'Reset Ignition Off Counter
+	endif
+	
+	if IgnOff > 4 then			'If IgnOff Counter > 4 then save data 
+	DutyCycle = 125				'Set CmdPwr to 50% Duty Standby
+	AssistFlag = 0				'Set AssistFlag to 0 indicates Max Assist (Rally) Mode disengaged
+	gosub UpdateMima			'Gosub UpdateMima    
+	WRITE 243,WattHrIn.Byte0,WattHrIn.Byte1,WattHrOut.Byte0,WattHrOut.Byte1,ChgAh.Byte0,ChgAh.Byte1,_
+DisAh.Byte0,DisAh.Byte1,HH.Byte0,HH.Byte1,MM,SS,Config	'Store In EEprom 
+    	HSEROUT [L01,L02,L11,L12,L13,L14,"IMA Data Saved!!"] 	'Goodbye Message                 
+	pause 15000                 		'Pause for 15 seconds
+	goto Start                         	'Goto Start
+	endif
+	
+	Volts = Count1                          'Load Volts from Count1 preserves previous Voltage if error
+    
+	Gen = BCM[2] & $07                    	'Calculate Soc Mask 00000111 
+    	
+    	Soc = Gen * 128                     	'Calculate Soc
+    	Soc = Soc + BCM[3]                	'Calculate Soc
+	Soc = Soc / 10				'Calculate Soc before decimal point	
+	
+    	Amps = BCM[4] * 128       		'Calculate Current to two decimal places
+    	Amps = Amps + BCM[5]
+    	Amps = Amps - 2048	
+	if Amps.15 = 1 then			'Calculate AmpSign
+	AmpSign = 45				'Set AmpSign to 45 (-)
+	else
+	AmpSign = 43				'Set AmpSign to 43 (+)
+	endif
+	Amps = ABS Amps
+	Amps = Amps * 2500
+	Amps = DIV32 512
+	
+	Watts = Volts * Amps			'Calculate power in Watts 	
+	Watts = DIV32 100			'Calculate 1/1000th Kwh from watts per 250ms
+   		    	
+	TempAvg = BCM[7] + BCM[8] 		'Calculate Average Temp from Highest/Lowest BCM Readings
+	TempAvg = TempAvg / 2
+    		
+	if TempAvg < 30 then
+    	TempAvg = 30 - TempAvg			'Calculate Battery Temp in Centigrade if C < 0
+	TempSign = 45				'Display Temp "-" Sign   
+    	else   	
+	TempAvg = TempAvg - 30			'Calculate Battery Temp in Centigrade if C >= 0
+	TempSign = 43				'Display Temp "+" Sign   
+    	endif
+    	
+	if TempBit = 0 then			'If TempBit = 0 then farenheit conversion
+	if TempSign = 45 then			'If Temp is below 32F then
+	TempAvg = 32 - ((TempAvg * 18) / 10)	'Convert Centigrade to Farenheit for temp < 32F
+	TempSign = 43                  		'Farenheit does not go negative until less then 0
+	else
+	TempAvg = ((TempAvg * 18) / 10) + 32	'Convert Centigrade to Farenheit for temp >= 32F
+	endif
+    	endif
+
+ErrorJump:					'Jump over initial data analysis if checksum error
+
+	'Ah & Wh Counting (Unit = 21600)  Gives resolution to 0.01Ah (Unit = 21600) Gives resolution to 1wh	
+					
+	if AmpSign = 43 then			'If AmpSign = "+" then Ah & Wh calculations
+	
+	WattIn = WattIn + Watts			'Add latest Watts data to the running Watts total
+	while WattIn >= Unit			'If WattIn > Unit then execute code in loop
+	WattHrIn = WattHrIn + 1			'Inc WattHrIn by one unit (1 wh) 
+	WattIn = WattIn - Unit			'Subtract (Unit) from WattIn
+	WEND					'Repeat loop until Watts < Unit
+
+	Charge = Charge + Amps			'Add latest Current data to running Charge total 
+	while Charge >= Unit			'If Charge > Unit then execute code in loop
+	ChgAh = ChgAh + 1 			'Inc ChgAh by one unit (10ma/ah) 
+	Charge = Charge - Unit			'Subtract (Unit) from Charge
+	WEND					'Repeat loop until Charge < Unit
+ 	endif
+	
+	if AmpSign = 45 then			'If AmpSign = "-" then Ah & Wh calculations
+
+    	WattOut = WattOut + Watts		'Add latest Watts data to the running Watts total
+	while WattOut >= Unit			'If WattOut > Unit then execute code in loop
+	WattHrOut = WattHrOut + 1		'Inc WattHrOut by one unit (1 wh) 
+	WattOut = WattOut - Unit		'Subtract (Unit) from WattOut
+	WEND					'Repeat loop until Watts < Unit
+
+	Discharge = Discharge + Amps		'Add latest Current data to running Discharge total 
+	while Discharge >= Unit			'If Discharge > Unit then execute code in loop
+	DisAh = DisAh + 1    			'Inc DisAh by one unit (10ma/ah) 
+	Discharge = Discharge - Unit		'Subtract (Unit) from Discharge 
+	WEND					'Repeat loop until Discharge < Unit 
+	endif  
+
+'Check if a button is pressed Push = 0 Up = 1 Right = 2 Down = 3 Left = 4 No Key = 5
+
+	gosub Keys				'Get value of JoyButtons into variable Key
+
+	If Key = 0 and KeyTime > 5 then 	'Long Press of Push Key increments Display Mode
+	DispMode = DispMode + 1			'Increment DispMode
+	If DispMode > 6 then
+	DispMode = 0				'Set DispMode to 0
+	endif
+	high SCS				'Disable SCS Blink Mode
+	HSEROUT [L01,L02]   			'Clear Screen at Disp Mode Change
+	DutyCycle = 125          		'Set Duty Cycle of SSPWM for CMDPWR 10-90%
+	FlagByte = 0				'Clears all Flag Bits, Max Assist (Rally), engine stop / start etc
+	endif
+		
+	if DispMode = 0 then 			'If Manual Mode selected gosub Manual Mode
+	
+	'Push = 0 Up = 1 Right = 2 Down = 3 Left = 4 No Key = 5
+    						
+    	If Key = 0 and KeyTime < 3 then   	'Short Button Press
+	DutyCycle = 125				'Set CmdPwr to 50% Duty
+	endif
+	    
+    	If Key = 1 then             		'Button Up > Increase Assist or Decrease Regen by 10 unit
+	DutyCycle = DutyCycle + 1		'Add 1% to DutyCycle (Increase Duty)
+	endif
+
+	If Key = 2 and Keytime > 2 and Clutch = 0 then 	'If Button Right and MP (Medium Press) then engine restart
+    	MaMode1Duty = 217			'Set MAMODE1 to Start Mode 85% Duty
+	DutyCycle = 126				'Set CMDPWR to 51% Duty
+	low MaMode2				'Set MAMODE2 to Low Pulls Down Line
+	gosub UpdatePwm				'Gosub UpdatePwm
+	HSEROUT [L11,L12,L13,L14,"Engine Start    "] 	'Start Message        
+	pause 400				'Pause for 400ms
+	DutyCycle = 125				'Set CMDPWR to 50% Duty
+	gosub UpdatePwm				'Gosub UpdatePwm
+	pause 600				'Pause for 600ms
+	endif
+    
+	if Key = 2 and KeyTime < 3 then 	'If Button Right and SP then Increase Assist or Decrease Regen by 100 units	
+	DutyCycle = DutyCycle + 25		'Add 10% to DutyCycle
+	endif
+		
+    	If Key = 3 then				'Button Down > Decrease Assist or Increase Regen by 10 unit
+    	DutyCycle = DutyCycle - 1		'Subtract 1% from DutyCycle (Decrease Duty)
+    	endif
+
+    	if Key = 4 and KeyTime > 2 then		'if Button Left and MP (Medium Press) then engine stop
+   	MaMode1Duty = 90			'Set MAMODE1 to Regen Mode 35% Duty
+	DutyCycle = 25				'Set CMDPWR to 10% Duty
+	High MaMode2				'Set MAMODE2 to High Pulls Up Line
+	gosub UpdatePwm				'Gosub UpdatePwm
+	HSEROUT [L11,L12,L13,L14,"Engine Stop     "] 	'Stop Message        
+	pause 600				'Pause for 600ms
+	DutyCycle = 125				'Set CMDPWR to 50% Duty
+	gosub UpdatePwm				'Gosub UpdatePwm
+	pause 400				'Pause for 400ms
+	endif
+	
+	If Key = 4 and KeyTime < 3 then		'Decrease Assist or Increase Regen by 100 units
+	DutyCycle = DutyCycle - 25		'Subtract 10% from DutyCycle
+	endif
+    	
+	'Throttle Pot Check (If Throttle pressed beyond activation point enable full assist)
+
+	ADCIN 2, Gen				'Get Throttle Pot Value 0-255
+	Gen = (Gen * 10) / 25  		 	'Reduce Throttle value by factor of 25 gives ~0-99 throttle variable
+	
+	if Key = 5 and Gen > 80 AND AssistBit = 1 and Brake = 0 then	'If WOT & No Key & Max Assist (Rally) Enabled then Max Assist
+	
+	if AssistFlag = 0 then			'If AssistFlag = 0 then Max Assist (Rally) Mode engaged so preserve variables 
+	AssistFlag = 1				'Set AssistFlag to 1 indicates Max Assist (Rally) Mode engaged
+	TempDuty = DutyCycle			'Save Duty Cycle
+	DutyCycle = 165				'Set CmdPwr to start Assist Ramp
+	endif
+
+	DutyCycle = DutyCycle + 10		'Ramp up CmdPwr to 90% Duty Max Assist
+    	
+	else
+	
+	if AssistFlag = 1 then			'If AssistFlag = 1 then Max Assist (Rally) Mode engaged & throttle now closed 
+	AssistFlag = 0				'Set AssistFlag to 0 indicates Max Assist (Rally) Mode disengaged
+	DutyCycle = TempDuty			'Restore Duty Cycle
+	endif
+	
+	endif
+
+	if DutyCycle > 225 then	DutyCycle = 225	'Limit DutyCycle to Max 90%
+	if DutyCycle < 25  then	DutyCycle = 25	'Limit DutyCycle to Min 10%
+	
+	
+	HSEROUT [L11,L12,L13,L14,"D",#DutyCycle," R",#AssistFlag," Kw",#Watts/1000,".",#(Watts//1000)/100,"  "]
+	HSEROUT [L21,L22,L23,L24,#Volts," ",#Soc," ",#TempAvg," ",AmpSign,#Amps/100,".",#(Amps//100)/10," "]
+	endif	
+	
+    	If DispMode = 1 then                  	'Display Elapsed Time & Ah Counting
+
+	'Push = 0 Up = 1 Right = 2 Down = 3 Left = 4 No Key = 5
+		
+    	If Key = 1 Then       			'If Key = 1 (Up) then Reset Time Counter
+	Ticks = 0                              	'Clear Ticks
+	HH = 0                                 	'Clear Hours
+	MM = 0                                	'Clear Minutes
+	SS = 0                                 	'Clear Seconds
+    	HSEROUT [L01,L02]                       'Clear Screen                     
+    	endif     	
+
+	if Key = 3 then   			'If Key = 3 (Down) then Reset Ah Counter
+	DisAh = 0				'Clear Discharge Ah
+	ChgAh = 0				'Clear Charge Ah
+	Charge = 0				'Clear Charge Accumulator
+	Discharge = 0				'Clear Discharge Accumulator
+	HSEROUT [L01,L02]                      	'Clear Screen				
+	endif 
+    	
+	HSEROUT [L11,L12,L13,L14,"Time ",#HH,":"]	'Display Data
+	If MM < 10 then 			'If Minutes < 10 then display leading zero
+    	HSEROUT ["0"]				'Display Leading Zero (Minutes)
+    	endif
+    	HSEROUT [#MM,":"]			'Display Data
+    	If SS < 10 then 			'If Seconds < 10 then display leading zero
+    	HSEROUT ["0"]				'Display Leading Zero (Seconds)
+    	endif  
+	HSEROUT [#SS]				'Display Data
+	
+    	HSEROUT [L21,L22,L23,L24,"Ah +",#ChgAh/100,"."]	'Display Data
+    	Gen = ChgAh // 100			'Calculate ChgAh after decimal point
+    	If Gen < 10 then 			'If < 10 then display leading zero
+    	HSEROUT ["0"]				'Display Leading Zero (Charge Ah)
+    	endif    
+    	HSEROUT [#Gen," -",#DisAh/100,"."]	'Display Data
+    	Gen = DisAh // 100			'Calculate DisAh after decimal point
+    	If Gen < 10 then 			'If < 10 then display leading zero
+    	HSEROUT ["0"]				'Display Leading Zero (Discharge Ah)
+    	endif
+    	HSEROUT [#Gen]				'Display Data
+
+   	endif
+       
+       	If DispMode = 2 then                 	'Display Wh Data
+    
+    	if Key = 3 then   			'If Key = 3 (Down) then Reset Wh Counters
+	WattHrIn = 0				'Clear Watt Hours In 
+	WattHrOut = 0				'Clear Watt Hours Out 
+	WattIn = 0				'Clear Watts In Accumulator
+	WattOut = 0				'Clear Watts Out Accumulator
+    	HSEROUT [L01,L02]                       'Clear Screen				
+	endif
+
+        HSEROUT [L11,L12,L13,L14,"O ",#Overflow," T ",#LoopTimer,L21,L22,L23,L24,"Wh +",#WattHrIn," -",#WattHrOut]
+	endif	
+
+	
+	if DispMode = 3 then 			'If Error/Config Mode selected Display errors 	
+    
+   	'Push = 0 Up = 1 Right = 2 Down = 3 Left = 4 No Key = 5
+    
+  	If Key = 1 and KeyTime < 3 then        	'If Key = 1 (Up) SP then (Inc Backlight)
+	Light = Light + 5			'Increment Sparkfun backlight Brightness
+	If Light < 128 then Light = 128		'Keep Lcd control codes within permitted range (128 - 157)  
+	If Light = 158 then Light = 157		'Keep Lcd control codes within permitted range (128 - 157)
+	If Light > 157 then Light = 128		'Keep Lcd control codes within permitted range (128 - 157)
+	HSEROUT [124,Light] 			'Send Lcd Back light Control Code       
+    	Pause 10                         	'Delay prevents backlight lock up issue on Sparkfun Lcd 
+    	endif 
+
+	       
+        
+        If Key = 2 and KeyTime > 5 then AssistBit = !AssistBit 	'If Key = 2 (Right) LP then (Toggle Max Assist Enable)
+       
+       
+       	If Key = 3 and KeyTime < 3 then TempBit = !TempBit	'If Key = 3 (Down) SP then (Toggle temp display C or F)
+	
+
+	If Key = 3 and KeyTime > 5 then LogBit = !LogBit	'If Key = 3 (Down) LP then (Toggle Data Logging Mode)
+	
+       
+
+
+    	HSEROUT [L11,L12,L13,L14,"E= ",#Errors," P= ",#Packets,L21,L22,L23,L24,"Cfg = ",BIN8 Config] 
+      
+      	If Key <> 5 then Pause 1000   		'Pause for one second after any changes
+       
+   	endif
+    	
+	if DispMode = 4 then 			'If B3 Byte Mode selected 
+    	HSEROUT [L11,L12,L13,L14,"B3 = ",HEX2 B3Byte," ",BIN8 B3Byte,L21,L22,L23,L24]
+    	for Gen = 1 to 8			'Start 8 byte loop	
+	HSEROut [HEX2 BCM[Gen]] 		'Display RAW HEX Data for 8 key $87 Packet bytes
+	next Gen				'Next byte
+	endif  
+       	
+	if DispMode = 5 then			'If SCS Mode selected activate SCS Blink Mode
+	low SCS					'Pull SCS Line Low
+    	HSEROUT [L11,L12,L13,L14,"SCS Blink Mode! "]			
+	endif 
+	
+	If DispMode = 6 then              	'Display Splash Screen	
+    	HSEROUT [L11,L12,L13,L14," IMA C&C V4.06",L21,L22,L23,L24,"150mpg@gmail.com"] 'Splash 	
+	endif
+
+'Safety Checks!! Brake, Clutch Check (If Brake, Clutch pressed disable IMA control) 
+          
+   	if Brake = 1 or Clutch = 0 or Key = 0 then	'If But Push,Brake,Clutch, deactivate
+	DutyCycle = 125				'Set CmdPwr to 50% Duty Standby
+	AssistFlag = 0				'Set AssistFlag to 0 indicates Max Assist (Rally) Mode disengaged
+	endif
+           
+   	gosub UpdateMima			'Gosub UpdateMima
+
+			
+'*********************************** Timer Routine ********************************************************
+
+'This routine Ticks each 166ms TMR1 Tick (8mhz Clock)
+
+	LoopTimer.Highbyte = TMR1H 		'Load the LoopTimer with High Byte
+	LoopTimer.Lowbyte = TMR1L		'Load the LoopTimer with Low Byte
+	
+	If PIR1.0 = 1 then                  	'Timer has overflowed
+	OverFlow = OverFlow + 1                	'Increment Overflow Counter
+	endif
+
+T1handler:
+
+    	if PIR1.0 = 0 then T1Handler		'Wait Until timer overflows (166ms) 
+
+	Ticks = Ticks + 1 			'Increments every xxxms
+	
+'	If Ticks = 4 THEN      			'Check if 1 second has elasped 4hz 250ms
+'	If Ticks = 5 THEN      			'Check if 1 second has elasped 5hz 200ms
+	If Ticks = 6 THEN      			'Check if 1 second has elasped 6hz 166ms
+'	If Ticks = 8 THEN      			'Check if 1 second has elasped 8hz 125ms
+
+	Ticks = 0         			'Reset Ticks counter
+	SS=SS+1		  			'Increment Seconds
+	
+	if logBit = 0 then			'Data Logging Enabled = 0 
+	TMR0IE = 0				'Disable TMR0 interrupt enable bit (0 = Disabled)	
+	Debug "DATA,",#Volts,",",AmpSign,",",#Amps,",",#Soc,",",#TempAvg,13	'Sends logging data at 115200 baud
+	TMR0IE = 1				'Enable TMR0 interrupt enable bit (1 = enabled)
+	endif
+
+	IF SS=60 THEN				'Limit Seconds to 60
+        SS=0 
+        MM=MM+1		 			'Increment Minutes
+        IF MM=60 THEN				'Limit Minutes to 60
+        MM=0
+        HH=HH+1       				'Increment Hours
+        ENDIF	 
+	ENDIF
+	ENDIF
+
+	T1CON.0 = 0	 			'Stops Timer
+	
+	TMR1RunOn.Highbyte = TMR1H 		'Load the Run-On (Over-Run) value (if any)
+	TMR1RunOn.Lowbyte = TMR1L		'Load the Run-On (Over-Run) value (if any)
+	TMR1RunOn = PreLoad + TMR1RunOn		'Calculate new Preload setting to include any timer overrun	
+	TMR1H = TMR1RunOn.HighByte		'Load the timer with new value
+	TMR1L = TMR1RunOn.LowByte   		'Load the timer with new value
+
+	PIR1.0 = 0				'Clear TMR1 int flag 
+    	T1CON.0 = 1				'Starts Timer
+         
+	goto MainLoop				'Goto Main program loop 
+
+'************************ Update IMA Control Signals *************************
+
+UpdateMima:                     		'Jumps here to update Mima Sets/changes HPWM 20khz & SPWM 2khz	
+
+	if DutyCycle > 125 then			'Set Assist Mode
+	MaMode1Duty = 64			'Set MAMODE1 to Assist Mode 25% Duty
+	low MaMode2				'Set MAMODE2 to Low Pulls Down Line
+	endif 
+	
+	if DutyCycle < 125 then			'Set Regen Mode
+	MaMode1Duty = 90			'Set MAMODE1 to Regen Mode 35% Duty
+	High MaMode2				'Set MAMODE2 to High Pulls Up Line
+	endif
+
+	if DutyCycle = 125 then			'Set Standby Mode
+	MaMode1Duty = 127			'Set MAMODE1 to Normal Mode 50% Duty
+	High MaMode2				'Set MAMODE2 to High Pulls Up Line
+	endif
+
+UpdatePwm:					'Updates CmdPwr & MaMode1 Pwm Duty
+		    
+    	IF DutyCycle <> OldDutyCycle THEN   	'Checks if change in SPWM reqd
+	OldDutyCycle = DutyCycle
+	gosub StartSpwm                         'Change/Start 2khz SPWM               		    	
+	ENDIF
+	
+	iF MaMode1Duty <> LastMaMode1Duty THEN 	'Checks if change in HPWM reqd
+	LastMaMode1Duty = MaMode1Duty 
+	HPWM 1, MaMode1Duty, HPWMfreq   	'Change/Start 20khz HPWM
+	ENDIF 
+
+	if DutyCycle = 125 then 		'Enable / Disable IMA Control as reqd
+	low HCT4053				'De-Activate IMA Control
+	else
+	High HCT4053				'Activate IMA Control 
+	endif
+       		
+	return                 			'Return to main program
+
+'****************************** Buttons Routine *******************************
+
+'Check Button is pressed > Push = 0 Up = 1 Right = 2 Down = 3 Left = 4 No Key = 5 (Count1 = Press Duration)
+
+Keys:                    			'Decodes Joybutton Input and returns 5 values (0,1,2,3,4) in Key 
+
+	Gosub EvalKey				'Gosub Evaluate Key 
+	if Key = 5 then return			'Return to main program as no key pressed
+	Temp = Key				'Store Pressed Key
+	Count1 = 0				'Load Count1 with 0 resets button duration timer	
+
+LongKey:					'Detects Long Key Press
+
+	Gosub EvalKey				'Gosub Evaluate Key 
+	If Key = Temp then			'If same key is held down then  
+	Count1 = Count1 + 1			'Time how long Key pressed
+	If Count1 > 6000 then ExitLong		'Forces Exit if Key held down for too long ( > 3 seconds )
+	goto LongKey				'Repeat until Key is released		
+	endif
+
+ExitLong:
+
+    	Key = Temp				'Restore Key 
+	KeyTime = Count1 / 1000  		'Reduces Key Press Time Size and stores result
+	Return
+
+EvalKey:					'Returns Value for Keys
+
+	Key = 5					'Load Key with 5 no button pressed 
+	ADCIN 0, Gen				'Get value 0-255
+	if Gen > 234 then return		'If No key pressed then return
+	if Gen < 235 then key = 4		'Test if button 4 pressed 
+	if Gen < 192 then key = 3		'Test if button 3 pressed 
+	if Gen < 150 then key = 2		'Test if button 2 pressed 
+	if Gen < 107 then key = 1		'Test if button 1 pressed 
+	if Gen < 64  then key = 0		'Test if button 0 pressed 
+	return					'Return to main program   
+
+     
+'****************  Speed Calculation ***********************	
+	
+'Speed	        VAR Word	'Global Speed byte variable (0-65535) 16bit
+'SpeedAvg    	VAR WORD    	'Accumulates 5 x speed readings 
+'Dummy		VAR WORD	'Dummy variable for DIV32 Command	
+
+'CheckSpeed:					'Pulsin measures VSS pulse. In no pulse in the timeout, result will be 0 
+
+'	pulsin VSS,1,Local			'Measure length of a VSS pulse in 5us (8mhz) units (Timeout 0.32768s)
+	
+'	If Local = 0 then JumpSpeed  		'If SpeedAvg = 0 pulsin has timed out and vehicle is moving at < 15mph
+
+'Formula Speed = 3600sph / (count * 0.000005 * 4550)  Note max 32767 for divisor DIV32 XXXXX   
+    
+'    Dummy = Local * 5
+'    Local = 10000
+'    Dummy = Dummy * 4550
+'    Dummy = DIV32 Local
+'    Count1 = 36000 
+'    Local = Count1 * 10000
+'    Speed = div32 Dummy 
+'    Speed = Speed / 1000    
+    
+'	if Speed > 99 then		'If Speed > 99mph then limit to 99mph
+'	Speed = 99			'Limits Actual Speed to 99mph to preserve lcd 2 digit speed format
+'	endif
+
+'JumpSpeed:
+'	Return
+	
+
+'You could do something like:
+'create 2 flags
+'create 4 counters
+'Set up a TMR interrupt to interrupt every 10 ms or so. Poll your button.
+'If the button is down, increment two counters - "down1counter" and a "totaltimecounter" and set flag1. If flag1 is set and 'flag2 is not set, and the button is up, increment an "upcounter" and the totaltimecounter. Set flag 2. If flag 1 is set and 'flag 2 is set, and the button is down, increment down2counter and the totaltimecounter. Let totaltimecounter continue to 'run. After totaltimecounter has reached some value (a couple of seconds maybe), clear all counters to get ready for the next 'push(es).
+'
+'Before being cleared, the counters should have the information your program needs to make a decision. All in the background. 
+
+
