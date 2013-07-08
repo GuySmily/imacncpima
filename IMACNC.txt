@@ -428,7 +428,7 @@ Start:            'Main Program Start
   TXSTA.6 = 0        'Clear 9 Bit Usart Txd Mode
   GIE = 1          'Global Int Enable 
   
-  If SS = 255 Then       'Detects First Run & Clears Data
+  If SS = 255 Then  'Detects First Run & Clears Data
     SS = 0          'Clear Seconds
     MM = 0          'Clear Minutes
     HH = 0          'Clear Hours
@@ -436,6 +436,9 @@ Start:            'Main Program Start
     DisAh = 0                          'Clear Discharge Ah Out
     WattHrIn = 0        'Clear Watt Hours In 
     WattHrOut = 0        'Clear Watt Hours Out
+    
+    AssistPoint = 50
+    RegenPoint = 150
   EndIf
   
   Pause 1500
@@ -677,33 +680,67 @@ ErrorJump:          'Jump over initial data analysis if checksum error
   '-------------------------------------------------------------------------------
   'Mode 1 - PIMA
   '-------------------------------------------------------------------------------
-  'In this mode, the goal is to set specific assist/regen points based on the FCD.  For example,
-  'assist could be programmed to come on when the FCD reads below 75mpg, and
-  'regen won't kick in until 150mpg (0 throttle).  Both points based on user inputs
+  'In this mode, the assist/regen can be set by the user to kick in at different MAP sensor readings.
+  'In the future, I would like to change this so that it emulates the FCD instead.
   
   If DispMode = 1 Then
     'Quick flash letting the user know what mode this is.  If this looks nice we can add it to all modes
-    HSEROUT [L11,L12,L13,L14,"Mode 1 - PIMA   "]   'Mode Message        
+    HSEROUT [L11,L12,L13,L14,"Mode 1: PIMA-MAP"]   'Mode Message        
     Pause 250 'User won't be able to enter anything during this time - could be irritating
-      
+    
+    'Handle user inputs
     Select Case Key
-      Case 1 'Up = Increase assist point (kicks in sooner)
+      Case 1 'Up = Increase assist point (kicks in later)
+        AssistPoint = AssistPoint + 5
         
-        
-      Case 3 'Down = Decrease assist point (kicks in later)
-        
+      Case 3 'Down = Decrease assist point (kicks in sooner)
+        AssistPoint = AssistPoint - 5
         
       Case 2 'Right = Raise regen point (kicks in later)
+        RegenPoint = RegenPoint + 5
         
       Case 4 'Left = Decrease regen point (kicks in sooner)
+        RegenPoint = RegenPoint - 5
         
-      Case 0 'Click = Toggle between PIMA and stock
+      Case 0 'Click = Toggle between PIMA and stock?  Toggle sub-modes?  Not sure what to do yet.
+              'Probably will toggle between PIMA assist/regen point adjustments and MIMA-style control.
         
       Case Else 'including 5=Nothing
         
       
     End Select
+    
+    'TO DO: User input validation
+    '1. AssistPoint must be < RegenPoint
+    '2. Both points must be within allowed limits (0-150 on FCD, or ?-??? MAP sensor values)
+    
+    'TO DO: Analyse Peter's ramp-up code and implement it.  (For now, instantaneously jump to max assist/regen)
+    Select Case Map 'Pretending Map = FCD MPG reading for now
+      Case < AssistPoint
+        DutyCycle = 165  'Set CmdPwr to start Assist Ramp
+        'DutyCycle = DutyCycle + 10    'Ramp up CmdPwr to 90% Duty Max Assist
+        'If DutyCycle > 225 Then DutyCycle = 225  'Limit DutyCycle to Max 90%
+        
+      'If MPG is too high for assist, but not high enough to regen
+      Case >= AssistPoint And < RegenPoint  '<-- is this legal in picbasic case statements?
+        
+        'Either ramp up or down to 0 assist/regen (occurs at DutyCycle = 125)
+        Select Case DutyCycle
+          Case > 135
+            DutyCycle = DutyCycle - 10
+          Case < 115
+            DutyCycle = DutyCycle + 10
+          Case Else
+            DutyCycle = 125
+        End Select
+        
+      Case >= RegenPoint
+        'Add ramp code here
+        DutyCycle = 25   'Max regen (?)
+        
+    End Select
   
+  'Add code to display stuff
 
   EndIf
   
