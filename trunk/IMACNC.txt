@@ -49,8 +49,8 @@
 '                                   _____
 '(ADC2 Throttle In)     Input 2 -01|  ^  |18- Output1                  (SCS Out)
 '(ADC3 Map/VMax In/Out) Input 3 -02|     |17- Input 0          (ADC0 Buttons In)  
-'(ADC4 VSS In)          Input 4 -03|  1  |16- Input 7             (Brake In) 
-'(MCLR)                 Input 5 -04|  6  |15- Input 6               (Clutch In)
+'(ADC4 VSS In)          Input 4 -03|  1  |16- Input 7                 (Brake In) 
+'(MCLR)                 Input 5 -04|  6  |15- Input 6                (Clutch In)
 '(Gnd)                    Gnd 3 -05|  F  |14- +V                           (Vcc)
 '(HCT 4053 Control)    Output 0 -06|  8  |13- Output 7         (PGD + Regen Led)  
 '(MAMODE2 Pull Up)     Output 1 -07|  8  |12- Output 6 (PGC + Assist Led + Data)
@@ -62,7 +62,7 @@
 
 '                                    Top          
 '                                   _____
-'(MaMode1 From Pic)           Y1 -1|  ^  |16- +V                      (Vcc)
+'(MaMode1 From Pic)           Y1 -1|  ^  |16- +V                          (Vcc)
 '(Mamode1 From ECM)           Y0 -2|     |15- Y                 (CmdPwr to MCM)
 '(MaMode2 From Pic)           Z1 -3|  4  |14- X                (MaMode1 to MCM) 
 '(MaMode2 to MCM)              Z -4|  0  |13- X1              (CmdPwr From Pic)
@@ -108,6 +108,7 @@
 
 'Left {SP} = Decrease Assist by 25 units or Increase Regen by 25 units
 'Left {LP} = Stop Engine 
+
 
 '** Display Mode  = 2 ** Elapsed Time & Ah Mode
 
@@ -161,17 +162,17 @@
 #endconfig
 
 
-DEFINE OSC 8       'Set oscillator speed to 8mHz 
-OSCCON = %01111000     '8 Mhz
+DEFINE OSC 8            'Set oscillator speed to 8mHz 
+OSCCON = %01111000      '8 Mhz
 
-TRISA = %11111101     'SET PORTA AS INPUTS except port A.1 
-TRISB = %00000100     'SET PORTB AS OUTPUTS except port B.2
+TRISA = %11111101       'SET PORTA AS INPUTS except port A.1 
+TRISB = %00000100       'SET PORTB AS OUTPUTS except port B.2
 
-CMCON  = %00000111     'COMPARATORS OFF
-ANSEL  = %00001101    'AN0,AN2,AN3 Analog Inputs 
-ADCON0 = %01010001    'Turns A/D on, AN2  Fosc/16
-ADCON1 = %01000000    'Left justified and Fosc/16
-T1CON  = %00110000    '$30 = Prescaler 1:8, TMR1 OFF  
+CMCON  = %00000111      'COMPARATORS OFF
+ANSEL  = %00001101      'AN0,AN2,AN3 Analog Inputs 
+ADCON0 = %01010001      'Turns A/D on, AN2  Fosc/16
+ADCON1 = %01000000      'Left justified and Fosc/16
+T1CON  = %00110000      '$30 = Prescaler 1:8, TMR1 OFF  
 
 OPTION_REG = %00000001  'Set Option Reg for TMR0 and prescaler 1/4
 
@@ -179,10 +180,10 @@ DEFINE CCP1_REG PORTB   'Define output port for 20khz PWM pulses out
 DEFINE CCP1_BIT 3       'Define output port for 20khz PWM pulses out 
 
 Define ADC_BITS 8       'Set number of bits in result
-Define ADC_CLOCK 3       'Set clock source (3=rc)
-Define ADC_SAMPLEUS 50   'Set sampling time in uSec 
+Define ADC_CLOCK 3      'Set clock source (3=rc)
+Define ADC_SAMPLEUS 50  'Set sampling time in uSec 
 
-DEFINE HSER_BAUD 9600    'Set Baud rate to 9600bps
+DEFINE HSER_BAUD 9600   'Set Baud rate to 9600bps
 DEFINE HSER_BITS 9      'Set to 9 bit mode
 DEFINE HSER_EVEN 1      'Set Even Parity
 DEFINE HSER_CLROERR 1   'Clear overflow error automatically
@@ -241,25 +242,25 @@ FlagByte  Var BYTE  'Flag Bits Byte (0-7)
 Config    Var BYTE  'Config Flags Byte (0-7)
 DispMode  Var BYTE  'DispMode Byte 0-X  
 
-L01       Var BYTE      'Lcd Serial Control Code  Clear
-L02       Var BYTE      'Lcd Serial Control Code  Clear
+L01       Var BYTE  'Lcd Serial Control Code  Clear
+L02       Var BYTE  'Lcd Serial Control Code  Clear
 
-L11       Var BYTE      'Lcd Serial Control Code  Line 1
-L12       Var BYTE      'Lcd Serial Control Code  Line 1
-L13       Var BYTE      'Lcd Serial Control Code  Line 1
-L14       Var BYTE      'Lcd Serial Control Code  Line 1
+L11       Var BYTE  'Lcd Serial Control Code  Line 1
+L12       Var BYTE  'Lcd Serial Control Code  Line 1
+L13       Var BYTE  'Lcd Serial Control Code  Line 1
+L14       Var BYTE  'Lcd Serial Control Code  Line 1
 
-L21       Var BYTE      'Lcd Serial Control Code  Line 2
-L22       Var BYTE      'Lcd Serial Control Code  Line 2
-L23       Var BYTE      'Lcd Serial Control Code  Line 2
-L24       Var BYTE      'Lcd Serial Control Code  Line 2
+L21       Var BYTE  'Lcd Serial Control Code  Line 2
+L22       Var BYTE  'Lcd Serial Control Code  Line 2
+L23       Var BYTE  'Lcd Serial Control Code  Line 2
+L24       Var BYTE  'Lcd Serial Control Code  Line 2
 
-Key       Var BYTE      'Value of Key Direction 0 - 5
+Key       Var BYTE  'Value of Key Direction 0 - 5
 KeyTime   Var BYTE  'Length of time Key pressed 0 - 255 (each unit is 200ms) (5 = 1s) 
 Temp      Var BYTE  'Button temporary variable
-IgnOff    Var BYTE      'Counts number of cycles Ignition has been off 
+IgnOff    Var BYTE  'Counts number of cycles Ignition has been off 
 
-B3Byte    Var BYTE      'B3 Data Byte status
+B3Byte    Var BYTE  'B3 Data Byte status
 
 DutyCycle    Var BYTE  '2khz PWM DutyCycle for CmdPwr 10 - 90% (25 = Max Regen [125 = 50% duty] 225 = Max Assist)
 OldDutyCycle Var BYTE  '2khz PWM OldDutyCycle prevents continuous restart of pwm routine if duty unchanged 
@@ -283,6 +284,9 @@ SS        Var BYTE  'Seconds
 MM        Var BYTE  'Minutes
 HH        Var WORD  'Hours
 
+AssistPoint  Var BYTE  '
+RegenPoint   Var BYTE  '
+
 'Variables 16bit
 
 Amps        Var WORD  'Amps Word Variable
@@ -292,10 +296,10 @@ Errors      Var WORD  'Number of checksum errors
 Packets     Var WORD  'Number of data packets received
 Count1      Var WORD  'General Word Counter Variable (0-65535)
 
-PreLoad     Var WORD        'Preload Constant Loads Timer1 to get xxxms ticks
+PreLoad     Var WORD  'Preload Constant Loads Timer1 to get xxxms ticks
 TMR1RunOn   Var WORD  'Timer1 Run On
-Charge      Var WORD   'Charge accumulator 
-Discharge   Var WORD    'Discharge accumulator
+Charge      Var WORD  'Charge accumulator 
+Discharge   Var WORD  'Discharge accumulator
 ChgAh       Var WORD  'Charge Ah In
 DisAh       Var WORD  'Discharge Ah Out
 LoopTimer   Var WORD  'Loop Timer shows how long the main loop is taking (65535 = Max count)
@@ -303,7 +307,7 @@ WattHrIn    Var WORD  'Watt Hours In
 WattHrOut   Var WORD  'Watt Hours Out
 WattIn      Var WORD  'Watts In accumulator
 WattOut     Var WORD  'Watts Out accumulator
-OverFlow    Var WORD        'Shows How many times Timer has overflowed before loop completed. (Time errors)
+OverFlow    Var WORD  'Shows How many times Timer has overflowed before loop completed. (Time errors)
 
 'PortA Input Variables
 
@@ -322,9 +326,9 @@ HCT4053     Var PORTB.0  'Define PortB.0 Pin as HCT4053 chip High/Low
 MaMode2     Var PORTB.1  'Define PortB.1 Pin as Mamode2 Pull Up
 'Bcm         Var PORTB.2  'Define PortB.2 Pin as Usart RX BCM Data Serial Input 9600,8,E,1
 MaMode1     Var PORTB.3  'Define PortB.3 Pin as Mamode1 PWM 20khz Output 25-50% Duty
-CmdPwr      Var PORTB.4   'Define PortB.4 Pin as CmdPwr PWM 2khz Output 10-90% Duty
+CmdPwr      Var PORTB.4  'Define PortB.4 Pin as CmdPwr PWM 2khz Output 10-90% Duty
 'Lcd         Var PORTB.5   'Define PortB.5 Pin as Usart TX Lcd Data Serial Output 9600,8,N,1
-AssistLed   Var PORTB.6   'Define PortB.6 Pin as Assist Active Led + Data Logging Output 38400,8,N,1
+AssistLed   Var PORTB.6  'Define PortB.6 Pin as Assist Active Led + Data Logging Output 38400,8,N,1
 RegenLed    Var PORTB.7  'Define PortB.7 Pin as Regen Active Led
 
 '--------------------- Constants -----------------------------------------------
@@ -391,7 +395,7 @@ endasm
 ' ------------------------------------------------------------------------
 
 StartSPWM:                'Set DutyCycle before calling
-                           'For TMR0 2khz pwm and 8mhz clock Ticks = xxx per cycle 
+                          'For TMR0 2khz pwm and 8mhz clock Ticks = xxx per cycle 
   
   TMR0_ON_TICKS = DutyCycle         '(DutyCycle must be between 25 - 225 (10-90%)
   TMR0_OFF_TICKS = 250 - TMR0_ON_TICKS
@@ -419,7 +423,7 @@ Start:            'Main Program Start
   'PreLoad = 34286                    'Preload Constant Loads Timer1 with 34286 to get 125ms 8hz ticks
   
   Read 243,WattHrIn.Byte0,WattHrIn.Byte1,WattHrOut.Byte0,WattHrOut.Byte1,ChgAh.Byte0,ChgAh.Byte1,_
-  DisAh.Byte0,DisAh.Byte1,HH.Byte0,HH.Byte1,MM,SS,Config  'Read From EEprom
+  DisAh.Byte0,DisAh.Byte1,HH.Byte0,HH.Byte1,MM,SS,Config,RegenPoint,AssistPoint  'Read From EEprom
   
   TXSTA.6 = 0        'Clear 9 Bit Usart Txd Mode
   GIE = 1          'Global Int Enable 
@@ -493,7 +497,7 @@ MainLoop:          'Start of Main Program Loop
     AssistFlag = 0        'Set AssistFlag to 0 indicates Max Assist (Rally) Mode disengaged
     GoSub UpdateMima      'Gosub UpdateMima    
     WRITE 243,WattHrIn.Byte0,WattHrIn.Byte1,WattHrOut.Byte0,WattHrOut.Byte1,ChgAh.Byte0,ChgAh.Byte1,_
-    DisAh.Byte0,DisAh.Byte1,HH.Byte0,HH.Byte1,MM,SS,Config  'Store In EEprom 
+    DisAh.Byte0,DisAh.Byte1,HH.Byte0,HH.Byte1,MM,SS,Config,RegenPoint,AssistPoint  'Store In EEprom 
     HSEROUT [L01,L02,L11,L12,L13,L14,"IMA Data Saved!!"]   'Goodbye Message                 
     Pause 15000                     'Pause for 15 seconds
     GoTo Start                           'Goto Start
@@ -675,7 +679,7 @@ ErrorJump:          'Jump over initial data analysis if checksum error
   '-------------------------------------------------------------------------------
   'In this mode, the goal is to set specific assist/regen points based on the FCD.  For example,
   'assist could be programmed to come on when the FCD reads below 75mpg, and
-  'regen won't kick in until 150mpg (0 throttle)
+  'regen won't kick in until 150mpg (0 throttle).  Both points based on user inputs
   
   If DispMode = 1 Then
     'Quick flash letting the user know what mode this is.  If this looks nice we can add it to all modes
@@ -683,17 +687,17 @@ ErrorJump:          'Jump over initial data analysis if checksum error
     Pause 250 'User won't be able to enter anything during this time - could be irritating
       
     Select Case Key
-      Case 1 'Up = 
+      Case 1 'Up = Increase assist point (kicks in sooner)
         
         
-      Case 3 'Down = Decrease assist point
+      Case 3 'Down = Decrease assist point (kicks in later)
         
         
-      Case 2 'Right = Increase assist
+      Case 2 'Right = Raise regen point (kicks in later)
         
-      Case 4 'Left
+      Case 4 'Left = Decrease regen point (kicks in sooner)
         
-      Case 0 'Click
+      Case 0 'Click = Toggle between PIMA and stock
         
       Case Else 'including 5=Nothing
         
