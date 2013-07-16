@@ -467,18 +467,18 @@ MainLoop:          'Start of Main Program Loop
   
   'BCM Gauge Packet Data Acquisition
   
-  CheckSum = $87        'Load Checksum with $87 packet start byte value
-  HSERIN [WAIT(CheckSum), STR BCM\11]  'Wait for $XX then Rxd 11 bytes
-  For Gen = 0 to 9            'For Gen = 0 to 9 (Start 10 byte loop)
+  CheckSum = $87                      'Load Checksum with $87 packet start byte value
+  HSERIN [WAIT(CheckSum), STR BCM\11] 'Wait for $XX then Rxd 11 bytes
+  For Gen = 0 to 9                    'For Gen = 0 to 9 (Start 10 byte loop)
     CheckSum = CheckSum + BCM[Gen]    'Add Bytes
-  Next Gen               'Repeat until 10 bytes added
-  CheckSum = ~ CheckSum      'NOT CheckSum
-  CheckSum = CheckSum + 1      'Add 1 to CheckSum
-  Checksum = CheckSum & $7F     'AND $7F
-  Packets = Packets + 1      'Increment Packet Counter
-  If BCM[10] <> CheckSum Then      'If Checksum does not match try again   
-    Errors = Errors + 1      'Increment Error Counter
-    GoTo ErrorJump                     'If Error skip analysis
+  Next Gen                            'Repeat until 10 bytes added
+  CheckSum = ~ CheckSum               'NOT CheckSum
+  CheckSum = CheckSum + 1             'Add 1 to CheckSum
+  Checksum = CheckSum & $7F           'AND $7F
+  Packets = Packets + 1               'Increment Packet Counter
+  If BCM[10] <> CheckSum Then         'If Checksum does not match try again   
+    Errors = Errors + 1               'Increment Error Counter
+    GoTo ErrorJump                    'If Error skip analysis
   EndIf    
   
   Count1 = BCM[1] * 2      'Calculate Voltage
@@ -489,45 +489,45 @@ MainLoop:          'Start of Main Program Loop
   
   'Check if ignition turned off     
   
-  If B3Byte = 0 Then            'If Ignition has been switched off save data (B3 byte = 0)
-    IgnOff = IgnOff + 1      'Increment Ignition Off Counter
+  If B3Byte = 0 Then    'If Ignition has been switched off save data (B3 byte = 0)
+    IgnOff = IgnOff + 1 'Increment Ignition Off Counter
   Else
-    IgnOff = 0        'Reset Ignition Off Counter
+    IgnOff = 0          'Reset Ignition Off Counter
   EndIf
   
-  If IgnOff > 4 Then       'If IgnOff Counter > 4 then save data 
-    DutyCycle = 125        'Set CmdPwr to 50% Duty Standby
+  If IgnOff > 4 Then      'If IgnOff Counter > 4 then save data 
+    DutyCycle = 125       'Set CmdPwr to 50% Duty Standby
     AssistFlag = 0        'Set AssistFlag to 0 indicates Max Assist (Rally) Mode disengaged
     GoSub UpdateMima      'Gosub UpdateMima    
     WRITE 243,WattHrIn.Byte0,WattHrIn.Byte1,WattHrOut.Byte0,WattHrOut.Byte1,ChgAh.Byte0,ChgAh.Byte1,_
     DisAh.Byte0,DisAh.Byte1,HH.Byte0,HH.Byte1,MM,SS,Config,RegenPoint,AssistPoint  'Store In EEprom 
     HSEROUT [L01,L02,L11,L12,L13,L14,"IMA Data Saved!!"]   'Goodbye Message                 
-    Pause 15000                     'Pause for 15 seconds
-    GoTo Start                           'Goto Start
+    Pause 15000           'Pause for 15 seconds
+    GoTo Start            'Goto Start
   EndIf
   
-  Volts = Count1                          'Load Volts from Count1 preserves previous Voltage if error
+  Volts = Count1          'Load Volts from Count1 preserves previous Voltage if error
   
-  Gen = BCM[2] & $07                      'Calculate Soc Mask 00000111 
+  Gen = BCM[2] & $07      'Calculate Soc Mask 00000111 
   
-  Soc = Gen * 128                       'Calculate Soc
-  Soc = Soc + BCM[3]                  'Calculate Soc
-  Soc = Soc / 10        'Calculate Soc before decimal point  
+  Soc = Gen * 128         'Calculate Soc
+  Soc = Soc + BCM[3]      'Calculate Soc
+  Soc = Soc / 10          'Calculate Soc before decimal point  
   
-  Amps = BCM[4] * 128           'Calculate Current to two decimal places
+  Amps = BCM[4] * 128     'Calculate Current to two decimal places
   Amps = Amps + BCM[5]
   Amps = Amps - 2048  
-  If Amps.15 = 1 Then       'Calculate AmpSign
-    AmpSign = 45        'Set AmpSign to 45 (-)
+  If Amps.15 = 1 Then     'Calculate AmpSign
+    AmpSign = 45          'Set AmpSign to 45 (-)
   Else
-    AmpSign = 43        'Set AmpSign to 43 (+)
+    AmpSign = 43          'Set AmpSign to 43 (+)
   EndIf
   Amps = ABS Amps
   Amps = Amps * 2500
   Amps = DIV32 512
   
-  Watts = Volts * Amps      'Calculate power in Watts   
-  Watts = DIV32 100      'Calculate 1/1000th Kwh from watts per 250ms
+  Watts = Volts * Amps    'Calculate power in Watts   
+  Watts = DIV32 100       'Calculate 1/1000th Kwh from watts per 250ms
   
   TempAvg = BCM[7] + BCM[8]     'Calculate Average Temp from Highest/Lowest BCM Readings
   TempAvg = TempAvg / 2
@@ -553,32 +553,32 @@ ErrorJump:          'Jump over initial data analysis if checksum error
 
   'Ah & Wh Counting (Unit = 21600)  Gives resolution to 0.01Ah (Unit = 21600) Gives resolution to 1wh  
   
-  If AmpSign = 43 Then       'If AmpSign = "+" then Ah & Wh calculations
-    WattIn = WattIn + Watts      'Add latest Watts data to the running Watts total
-    While WattIn >= Unit      'If WattIn > Unit then execute code in loop
-      WattHrIn = WattHrIn + 1      'Inc WattHrIn by one unit (1 wh) 
-      WattIn = WattIn - Unit      'Subtract (Unit) from WattIn
-    WEnd          'Repeat loop until Watts < Unit
+  If AmpSign = 43 Then              'If AmpSign = "+" then Ah & Wh calculations
+    WattIn = WattIn + Watts         'Add latest Watts data to the running Watts total
+    While WattIn >= Unit            'If WattIn > Unit then execute code in loop
+      WattHrIn = WattHrIn + 1       'Inc WattHrIn by one unit (1 wh) 
+      WattIn = WattIn - Unit        'Subtract (Unit) from WattIn
+    WEnd                            'Repeat loop until Watts < Unit
     
-    Charge = Charge + Amps      'Add latest Current data to running Charge total 
-    While Charge >= Unit      'If Charge > Unit then execute code in loop
-      ChgAh = ChgAh + 1       'Inc ChgAh by one unit (10ma/ah) 
-      Charge = Charge - Unit      'Subtract (Unit) from Charge
-    WEnd          'Repeat loop until Charge < Unit
+    Charge = Charge + Amps          'Add latest Current data to running Charge total 
+    While Charge >= Unit            'If Charge > Unit then execute code in loop
+      ChgAh = ChgAh + 1             'Inc ChgAh by one unit (10ma/ah) 
+      Charge = Charge - Unit        'Subtract (Unit) from Charge
+    WEnd                            'Repeat loop until Charge < Unit
   EndIf
   
-  If AmpSign = 45 Then       'If AmpSign = "-" then Ah & Wh calculations
-    WattOut = WattOut + Watts    'Add latest Watts data to the running Watts total
-    While WattOut >= Unit      'If WattOut > Unit then execute code in loop
-      WattHrOut = WattHrOut + 1    'Inc WattHrOut by one unit (1 wh) 
-      WattOut = WattOut - Unit    'Subtract (Unit) from WattOut
-    WEnd          'Repeat loop until Watts < Unit
+  If AmpSign = 45 Then              'If AmpSign = "-" then Ah & Wh calculations
+    WattOut = WattOut + Watts       'Add latest Watts data to the running Watts total
+    While WattOut >= Unit           'If WattOut > Unit then execute code in loop
+      WattHrOut = WattHrOut + 1     'Inc WattHrOut by one unit (1 wh) 
+      WattOut = WattOut - Unit      'Subtract (Unit) from WattOut
+    WEnd                            'Repeat loop until Watts < Unit
 
     Discharge = Discharge + Amps    'Add latest Current data to running Discharge total 
-    While Discharge >= Unit      'If Discharge > Unit then execute code in loop
-      DisAh = DisAh + 1          'Inc DisAh by one unit (10ma/ah) 
-      Discharge = Discharge - Unit    'Subtract (Unit) from Discharge 
-    WEnd          'Repeat loop until Discharge < Unit 
+    While Discharge >= Unit         'If Discharge > Unit then execute code in loop
+      DisAh = DisAh + 1             'Inc DisAh by one unit (10ma/ah) 
+      Discharge = Discharge - Unit  'Subtract (Unit) from Discharge 
+    WEnd                            'Repeat loop until Discharge < Unit 
   EndIf  
 
   'Check if a button is pressed Push = 0 Up = 1 Right = 2 Down = 3 Left = 4 No Key = 5
@@ -586,14 +586,14 @@ ErrorJump:          'Jump over initial data analysis if checksum error
   GoSub Keys        'Get value of JoyButtons into variable Key
 
   If Key = 0 And KeyTime > 5 Then 'Long Press of Push Key increments Display Mode
-    DispMode = DispMode + 1 'Increment DispMode
-    If DispMode > 7 Then 'Last display mode
-      DispMode = 0      'Set DispMode to 0
+    DispMode = DispMode + 1       'Increment DispMode
+    If DispMode > 7 Then          'Last display mode
+      DispMode = 0                'Set DispMode to 0
     EndIf
-    high SCS            'Disable SCS Blink Mode
-    HSEROUT [L01,L02]   'Clear Screen at Disp Mode Change
-    DutyCycle = 125     'Set Duty Cycle of SSPWM for CMDPWR 10-90%
-    FlagByte = 0        'Clears all Flag Bits, Max Assist (Rally), engine stop / start etc
+    high SCS                      'Disable SCS Blink Mode
+    HSEROUT [L01,L02]             'Clear Screen at Disp Mode Change
+    DutyCycle = 125               'Set Duty Cycle of SSPWM for CMDPWR 10-90%
+    FlagByte = 0                  'Clears all Flag Bits, Max Assist (Rally), engine stop / start etc
   EndIf
 
   '-------------------------------------------------------------------------------
@@ -603,35 +603,35 @@ ErrorJump:          'Jump over initial data analysis if checksum error
   
     'Push = 0 Up = 1 Right = 2 Down = 3 Left = 4 No Key = 5
     
-    If Key = 0 And KeyTime < 3 Then      'Short Button Press
-      DutyCycle = 125        'Set CmdPwr to 50% Duty
+    If Key = 0 And KeyTime < 3 Then 'Short Button Press
+      DutyCycle = 125               'Set CmdPwr to 50% Duty
     EndIf
     
-    If Key = 1 Then                  'Button Up > Increase Assist or Decrease Regen by 10 unit
-      DutyCycle = DutyCycle + 1    'Add 1% to DutyCycle (Increase Duty)
+    If Key = 1 Then              'Button Up > Increase Assist or Decrease Regen by 10 unit
+      DutyCycle = DutyCycle + 1  'Add 1% to DutyCycle (Increase Duty)
     EndIf
     
     If Key = 2 And Keytime > 2 And Clutch = 0 Then    'If Button Right and MP (Medium Press) then engine restart
       MaMode1Duty = 217      'Set MAMODE1 to Start Mode 85% Duty
       DutyCycle = 126        'Set CMDPWR to 51% Duty
-      low MaMode2        'Set MAMODE2 to Low Pulls Down Line
+      low MaMode2            'Set MAMODE2 to Low Pulls Down Line
       GoSub UpdatePwm        'Gosub UpdatePwm
       HSEROUT [L11,L12,L13,L14,"Engine Start    "]   'Start Message        
-      Pause 400        'Pause for 400ms
+      Pause 400              'Pause for 400ms
       DutyCycle = 125        'Set CMDPWR to 50% Duty
       GoSub UpdatePwm        'Gosub UpdatePwm
-      Pause 600        'Pause for 600ms
+      Pause 600              'Pause for 600ms
     EndIf
     
-    If Key = 2 And KeyTime < 3 Then    'If Button Right and SP then Increase Assist or Decrease Regen by 100 units  
+    If Key = 2 And KeyTime < 3 Then 'If Button Right and SP then Increase Assist or Decrease Regen by 100 units  
       DutyCycle = DutyCycle + 25    'Add 10% to DutyCycle
     EndIf
     
-    If Key = 3 Then         'Button Down > Decrease Assist or Increase Regen by 10 unit
-      DutyCycle = DutyCycle - 1    'Subtract 1% from DutyCycle (Decrease Duty)
+    If Key = 3 Then             'Button Down > Decrease Assist or Increase Regen by 10 unit
+      DutyCycle = DutyCycle - 1 'Subtract 1% from DutyCycle (Decrease Duty)
     EndIf
     
-    If Key = 4 And KeyTime > 2 Then     'If Button Left and MP (Medium Press) then engine stop
+    If Key = 4 And KeyTime > 2 Then 'If Button Left and MP (Medium Press) then engine stop
       MaMode1Duty = 90    'Set MAMODE1 to Regen Mode 35% Duty
       DutyCycle = 25      'Set CMDPWR to 10% Duty
       High MaMode2        'Set MAMODE2 to High Pulls Up Line
@@ -652,15 +652,16 @@ ErrorJump:          'Jump over initial data analysis if checksum error
     ADCIN 2, Gen          'Get Throttle Pot Value 0-255
     Gen = (Gen * 10) / 25 'Reduce Throttle value by factor of 25 gives ~0-99 throttle variable
     
-    If Gen > 80 And Key = 5 And AssistBit = 1 And Brake = 0 Then   'If WOT & No Key & Max Assist (Rally) Enabled then Max Assist
+    'If   WOT    & No KeyPress & Max Assist (Rally) Enabled  & not braking then Max Assist
+    If Gen > 80 And Key = 5 And AssistBit = 1 And Brake = 0 Then
     
-      If AssistFlag = 0 Then 'If AssistFlag = 0 then Max Assist (Rally) Mode engaged so preserve variables 
+      If AssistFlag = 0 Then 'If AssistFlag = 0 (just turned on) then preserve variables 
         AssistFlag = 1       'Set AssistFlag to 1 indicates Max Assist (Rally) Mode engaged
         TempDuty = DutyCycle 'Save Duty Cycle
         DutyCycle = 165      'Set CmdPwr to start Assist Ramp
       EndIf
       
-      DutyCycle = DutyCycle + 10    'Ramp up CmdPwr to 90% Duty Max Assist
+      DutyCycle = DutyCycle + 10  'Ramp up CmdPwr to 90% Duty Max Assist
       
     Else
       If AssistFlag = 1 Then 'If AssistFlag = 1 then Max Assist (Rally) Mode engaged & throttle now closed 
@@ -670,7 +671,7 @@ ErrorJump:          'Jump over initial data analysis if checksum error
     
     EndIf
     
-    If DutyCycle > 225 Then DutyCycle = 225  'Limit DutyCycle to Max 90%
+    If DutyCycle > 225 Then DutyCycle = 225 'Limit DutyCycle to Max 90%
     If DutyCycle < 25  Then DutyCycle = 25  'Limit DutyCycle to Min 10%
     
     HSEROUT [L11,L12,L13,L14,"D",#DutyCycle," R",#AssistFlag," Kw",#Watts/1000,".",#(Watts//1000)/100,"  "]
@@ -680,15 +681,17 @@ ErrorJump:          'Jump over initial data analysis if checksum error
   '-------------------------------------------------------------------------------
   'Mode 1 - PIMA
   '-------------------------------------------------------------------------------
-  'In this mode, the assist/regen can be set by the user to kick in at different MAP sensor readings.
+  'In this mode, the assist/regen can be set by the user to kick in at different throttle/MAP readings.
   'In the future, I would like to change this so that it emulates the FCD instead.
   
   If DispMode = 1 Then
     'Quick flash letting the user know what mode this is.  If this looks nice we can add it to all modes
-    HSEROUT [L11,L12,L13,L14,"Mode 1: PIMA-MAP"]   'Mode Message        
-    Pause 250 'User won't be able to enter anything during this time - could be irritating
+    HSEROUT [L11,L12,L13,L14,"Mode 1 - PIMA   "]   'Mode Message        
+    Pause 250 'User won't be able to enter anything or switch modes during this time, but this could be fixed with a loop.
     
-    'Handle user inputs
+    '-------------------
+    'Pick up user inputs
+    '-------------------
     Select Case Key
       Case 1 'Up = Increase assist point (kicks in later)
         AssistPoint = AssistPoint + 5
@@ -702,43 +705,65 @@ ErrorJump:          'Jump over initial data analysis if checksum error
       Case 4 'Left = Decrease regen point (kicks in sooner)
         RegenPoint = RegenPoint - 5
         
-      Case 0 'Click = Toggle between PIMA and stock?  Toggle sub-modes?  Not sure what to do yet.
-              'Probably will toggle between PIMA assist/regen point adjustments and MIMA-style control.
+      Case 0 'Click = Toggle sub-mode
+        'Sub-mode operation: Joystick either changes PIMA settings (as above), or
+        'functions as MIMA for temporary override
+        'Example: quick burst of assist needed, but want to stay in PIMA after that   
         
       Case Else 'including 5=Nothing
-        
-      
     End Select
     
     'TO DO: User input validation
     '1. AssistPoint must be < RegenPoint
     '2. Both points must be within allowed limits (0-150 on FCD, or ?-??? MAP sensor values)
     
-    'TO DO: Analyse Peter's ramp-up code and implement it.  (For now, instantaneously jump to max assist/regen)
+    '-------------------
+    'Calculate DutyCycle
+    '-------------------
     Select Case Map 'Pretending Map = FCD MPG reading for now
+    
+      '--------------------------
+      'MPG too low - needs assist
+      '--------------------------
       Case < AssistPoint
-        DutyCycle = 165  'Set CmdPwr to start Assist Ramp
-        'DutyCycle = DutyCycle + 10    'Ramp up CmdPwr to 90% Duty Max Assist
-        'If DutyCycle > 225 Then DutyCycle = 225  'Limit DutyCycle to Max 90%
+        'DutyCycle for assist = 125 to 225 (125 + 0 to 100)
         
-      'If MPG is too high for assist, but not high enough to regen
-      Case >= AssistPoint And < RegenPoint  '<-- is this legal in picbasic case statements?
+        If DutyCycle < 175 Then
+          DutyCycle = 175             'Start Assist at 50%
+        Else
+          DutyCycle = DutyCycle + 10  'Increase by 10% per cycle
+        EndIf
         
-        'Either ramp up or down to 0 assist/regen (occurs at DutyCycle = 125)
+      '---------------------------
+      'MPG very high - apply regen
+      '---------------------------
+      Case >= RegenPoint
+        'For regen, DutyCycle = 25 to 125
+        If DutyCycle > 75 Then
+          DutyCycle = 75                'Start Regen Ramp at 50% (75 - 125 = -50%)
+        Else
+          DutyCycle = DutyCycle - 10    'Increase regen (by -10) per cycle
+        EndIf
+      
+      '---------------------------------------------------
+      'MPG is within desired range - turn assist/regen off
+      '---------------------------------------------------
+      Case >= AssistPoint And < RegenPoint
+        
+        'Ramp to 0 assist/regen (at DutyCycle = 125)
         Select Case DutyCycle
           Case > 135
-            DutyCycle = DutyCycle - 10
+            DutyCycle = DutyCycle - 10 'Reduce assist 10% at a time
           Case < 115
-            DutyCycle = DutyCycle + 10
-          Case Else
+            DutyCycle = DutyCycle + 10 'Reduce regen 10% at a time
+          Case Else '>=115 and <=135
             DutyCycle = 125
         End Select
-        
-      Case >= RegenPoint
-        'Add ramp code here
-        DutyCycle = 25   'Max regen (?)
-        
     End Select
+    
+    'Keep Duty Cycle within allowed limits
+    If DutyCycle > 225 Then DutyCycle = 225 'Max DutyCycle 90%
+    If DutyCycle < 25  Then DutyCycle = 25  'Min DutyCycle 10%
   
   'Add code to display stuff
 
@@ -869,79 +894,79 @@ ErrorJump:          'Jump over initial data analysis if checksum error
     AssistFlag = 0        'Set AssistFlag to 0 indicates Max Assist (Rally) Mode disengaged
   EndIf
   
-  GoSub UpdateMima      'Gosub UpdateMima
+  GoSub UpdateMima      'Run UpdateMima, then return here  
   
   
-'*********************************** Timer Routine ********************************************************
+  '*********************************** Timer Routine ********************************************************
 
-'This routine Ticks each 166ms TMR1 Tick (8mhz Clock)
-
+  'This routine Ticks each 166ms TMR1 Tick (8mhz Clock)
+  
   LoopTimer.Highbyte = TMR1H     'Load the LoopTimer with High Byte
   LoopTimer.Lowbyte = TMR1L    'Load the LoopTimer with Low Byte
   
   If PIR1.0 = 1 Then                     'Timer has overflowed
     OverFlow = OverFlow + 1                  'Increment Overflow Counter
   EndIf
-
-T1handler:
-
+  
+  T1Handler:
   If PIR1.0 = 0 Then T1Handler    'Wait Until timer overflows (166ms) 
   
   Ticks = Ticks + 1       'Increments every xxxms
   
-  'If Ticks = 4 Then            'Check if 1 second has elasped 4hz 250ms
-  'If Ticks = 5 Then            'Check if 1 second has elasped 5hz 200ms
-  If Ticks = 6 Then            'Check if 1 second has elasped 6hz 166ms
-  'If Ticks = 8 Then            'Check if 1 second has elasped 8hz 125ms
-    Ticks = 0               'Reset Ticks counter
-    SS=SS+1            'Increment Seconds
+  'If Ticks = 4 Then      'Check if 1 second has elapsed 4hz 250ms
+  'If Ticks = 5 Then      'Check if 1 second has elapsed 5hz 200ms
+  If Ticks = 6 Then       'Check if 1 second has elapsed 6hz 166ms
+  'If Ticks = 8 Then      'Check if 1 second has elapsed 8hz 125ms
+    Ticks = 0             'Reset Ticks counter
+    SS=SS+1               'Increment Seconds
     
-    If logBit = 0 Then       'Data Logging Enabled = 0 
+    If logBit = 0 Then  'Data Logging Enabled = 0 
       TMR0IE = 0        'Disable TMR0 interrupt enable bit (0 = Disabled)  
       Debug "DATA,",#Volts,",",AmpSign,",",#Amps,",",#Soc,",",#TempAvg,13  'Sends logging data at 115200 baud
       TMR0IE = 1        'Enable TMR0 interrupt enable bit (1 = enabled)
     EndIf
     
-    If SS=60 Then        'Limit Seconds to 60
+    If SS=60 Then       'Limit Seconds to 60
       SS=0 
       MM=MM+1           'Increment Minutes
-      If MM=60 Then        'Limit Minutes to 60
+      If MM=60 Then     'Limit Minutes to 60
         MM=0
-        HH=HH+1               'Increment Hours
+        HH=HH+1         'Increment Hours
       EndIf   
     EndIf
   EndIf
   
   T1CON.0 = 0         'Stops Timer
   
-  TMR1RunOn.Highbyte = TMR1H     'Load the Run-On (Over-Run) value (if any)
-  TMR1RunOn.Lowbyte = TMR1L    'Load the Run-On (Over-Run) value (if any)
-  TMR1RunOn = PreLoad + TMR1RunOn    'Calculate new Preload setting to include any timer overrun  
-  TMR1H = TMR1RunOn.HighByte    'Load the timer with new value
+  TMR1RunOn.Highbyte = TMR1H      'Load the Run-On (Over-Run) value (if any)
+  TMR1RunOn.Lowbyte = TMR1L       'Load the Run-On (Over-Run) value (if any)
+  TMR1RunOn = PreLoad + TMR1RunOn 'Calculate new Preload setting to include any timer overrun  
+  TMR1H = TMR1RunOn.HighByte      'Load the timer with new value
   TMR1L = TMR1RunOn.LowByte       'Load the timer with new value
   
   PIR1.0 = 0        'Clear TMR1 int flag 
   T1CON.0 = 1        'Starts Timer
   
   GoTo MainLoop        'Goto Main program loop 
+  
 
 '************************ Update IMA Control Signals *************************
 
 UpdateMima:   'Jumps here to update Mima Sets/changes HPWM 20khz & SPWM 2khz  
 
-  If DutyCycle > 125 Then       'Set Assist Mode
+  If DutyCycle > 125 Then 'Set Assist Mode
     MaMode1Duty = 64      'Set MAMODE1 to Assist Mode 25% Duty
-    Low MaMode2        'Set MAMODE2 to Low Pulls Down Line
+    Low MaMode2           'Set MAMODE2 to Low Pulls Down Line
   EndIf 
   
-  If DutyCycle < 125 Then       'Set Regen Mode
+  If DutyCycle < 125 Then 'Set Regen Mode
     MaMode1Duty = 90      'Set MAMODE1 to Regen Mode 35% Duty
-    High MaMode2        'Set MAMODE2 to High Pulls Up Line
+    High MaMode2          'Set MAMODE2 to High Pulls Up Line
   EndIf
 
-  If DutyCycle = 125 Then       'Set Standby Mode
-    MaMode1Duty = 127      'Set MAMODE1 to Normal Mode 50% Duty
-    High MaMode2        'Set MAMODE2 to High Pulls Up Line
+  If DutyCycle = 125 Then 'Set Standby Mode
+    MaMode1Duty = 127     'Set MAMODE1 to Normal Mode 50% Duty
+    High MaMode2          'Set MAMODE2 to High Pulls Up Line
   EndIf
 
 UpdatePwm:          'Updates CmdPwr & MaMode1 Pwm Duty
